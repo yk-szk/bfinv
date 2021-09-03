@@ -4,6 +4,7 @@ use digest::{Digest, FixedOutput};
 use md5::Md5;
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
+use sha3::{Sha3_256, Sha3_512};
 use std::fmt::Write;
 use std::io::{BufRead, BufReader};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -14,6 +15,8 @@ static HASH_SIZE: phf::OrderedMap<&'static str, usize> = phf::phf_ordered_map! {
     "sha1" => 40,
     "sha256" => 64,
     "sha512" => 128,
+    "sha3-256" => 64,
+    "sha3-512" => 128,
 };
 
 use std::thread;
@@ -137,6 +140,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "sha1" => bf_digest::<Sha1, 40>(hash_set, n_start, n_end, n_threads, verbosity)?,
         "sha256" => bf_digest::<Sha256, 64>(hash_set, n_start, n_end, n_threads, verbosity)?,
         "sha512" => bf_digest::<Sha512, 128>(hash_set, n_start, n_end, n_threads, verbosity)?,
+        "sha3-256" => bf_digest::<Sha3_256, 64>(hash_set, n_start, n_end, n_threads, verbosity)?,
+        "sha3-512" => bf_digest::<Sha3_512, 128>(hash_set, n_start, n_end, n_threads, verbosity)?,
         _ => {
             return Err(Box::new(clap::Error {
                 message: format!("{} not found.", hash_function),
