@@ -1,0 +1,16 @@
+[package]
+name = "bfinv"
+version = "1.0.0"
+authors = ["Yuki Suzuki <y-suzuki@radiol.med.osaka-u.ac.jp>"]
+edition = "2018"
+
+[dependencies]
+clap = "2"
+phf = { version = "0", features = ["macros"] }
+phf_macros = "0"
+digest = "0"
+md-5 = "0"
+sha-1 = "0"
+sha2 = "0"
+hex = "0"
+num_cpus = "1"
