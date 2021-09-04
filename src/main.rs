@@ -142,13 +142,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "sha512" => bf_digest::<Sha512, 128>(hash_set, n_start, n_end, n_threads, verbosity)?,
         "sha3-256" => bf_digest::<Sha3_256, 64>(hash_set, n_start, n_end, n_threads, verbosity)?,
         "sha3-512" => bf_digest::<Sha3_512, 128>(hash_set, n_start, n_end, n_threads, verbosity)?,
-        _ => {
-            return Err(Box::new(clap::Error {
-                message: format!("{} not found.", hash_function),
-                kind: clap::ErrorKind::InvalidValue,
-                info: Some(vec![]),
-            }))
-        }
+        _ => panic!("Implementation error."),
     }
     return Ok(());
 }
