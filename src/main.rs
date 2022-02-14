@@ -174,30 +174,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
 
+    fn test_g<Hasher: Digest + FixedOutput + 'static>() {
+        let src = [0, 1, 10, 100, 1000, 10000];
+        let hashes: Vec<String> = src
+            .iter()
+            .map(|s| format!("{:08}", s))
+            .map(|s| {
+                let mut hasher = Hasher::new();
+                hasher.update(s);
+                hex::encode(hasher.finalize())
+            })
+            .collect();
+        let hash_set = Set::from_iter(hashes.clone().into_iter());
+        let hash_map = bf_digest::<Hasher>(hash_set, 0, 100000000, 1, 0).unwrap();
+        for (value, hash) in src.iter().zip(hashes.iter()) {
+            assert_eq!(hash_map[hash], *value);
+        }
+    }
+
     #[test]
     fn test_md5() {
-        let hash = "dd4b21e9ef71e1291183a46b913ae6f2".to_string();
-        let hash_set = Set::from([hash.clone()]);
-        let hash_map = bf_digest::<Md5>(hash_set, 0, 100000000, 1, 0).unwrap();
-        let value = hash_map[&hash];
-        assert_eq!(value, 0);
+        test_g::<Md5>();
     }
 
     #[test]
     fn test_sha1() {
-        let hash = "70352f41061eda4ff3c322094af068ba70c3b38b".to_string();
-        let hash_set = Set::from([hash.clone()]);
-        let hash_map = bf_digest::<Sha1>(hash_set, 0, 100000000, 1, 0).unwrap();
-        let value = hash_map[&hash];
-        assert_eq!(value, 0);
+        test_g::<Sha1>();
+    }
+
+    #[test]
+    fn test_sha256() {
+        test_g::<Sha256>();
     }
 
     #[test]
     fn test_sha512() {
-        let hash = "ce2a429a1c79d4068c0c7e54f5500ce16285d85730cb9ec0b61240f88ef9c870292200a1c069bd57d5e092874567058c91782513763bc30d86fedca63820c482".to_string();
-        let hash_set = Set::from([hash.clone()]);
-        let hash_map = bf_digest::<Sha512>(hash_set, 0, 100000000, 1, 0).unwrap();
-        let value = hash_map[&hash];
-        assert_eq!(value, 0);
+        test_g::<Sha512>();
     }
 }
