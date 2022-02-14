@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate clap;
+use digest::generic_array::GenericArray;
 use digest::{Digest, FixedOutput};
 use md5::Md5;
 use sha1::Sha1;
@@ -36,23 +37,28 @@ fn read_file(filename: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> 
     Ok(content)
 }
 
-fn bf_digest<Hasher: Digest + FixedOutput, const OUTPUT_SIZE: usize>(
+fn bf_digest<Hasher: Digest + FixedOutput + 'static>(
     hash_set: Set<String>,
     n_start: usize,
     n_end: usize,
     n_threads: usize,
     verbosity: u64,
 ) -> Result<HashMap<String, usize>, Box<dyn std::error::Error>> {
-    let hash_set = Arc::new(hash_set);
+    let mut u8_set = Set::new();
+    for hash in hash_set.iter() {
+        let v = hex::decode(hash)?;
+        let a: GenericArray<u8, <Hasher as FixedOutput>::OutputSize> = GenericArray::from_iter(v);
+        u8_set.insert(a);
+    }
     let counter = Arc::new(AtomicUsize::new(0));
+    let total_counts = hash_set.len();
     let mut handles = vec![];
     for thread_i in 0..n_threads {
         let counter = Arc::clone(&counter);
-        let hash_set = Arc::clone(&hash_set);
+        let t_u8_set = u8_set.clone();
         let handle = thread::spawn(move || {
             let mut hasher = Hasher::new();
             let mut i_str = String::with_capacity(8);
-            let mut hex_string = String::from_utf8(vec![0u8; OUTPUT_SIZE]).unwrap();
             let mut hash_bytes = Default::default();
             let mut hash_map: HashMap<String, usize> = HashMap::new();
             for i in ((n_start + thread_i)..n_end).step_by(n_threads) {
@@ -60,17 +66,13 @@ fn bf_digest<Hasher: Digest + FixedOutput, const OUTPUT_SIZE: usize>(
                 write!(&mut i_str, "{:08}", i).unwrap();
                 hasher.update(&i_str);
                 hasher.finalize_into_reset(&mut hash_bytes);
-                unsafe {
-                    hex::encode_to_slice(&hash_bytes, hex_string.as_bytes_mut()).unwrap();
-                }
-                if hash_set.contains(&hex_string) {
+                if t_u8_set.contains(&hash_bytes) {
+                    let hex_string = hex::encode(&hash_bytes);
                     println!("{},{:08}", hex_string, i);
-                    hash_map.insert(hex_string.clone(), i);
-                    {
-                        counter.fetch_add(1, Ordering::SeqCst);
-                    }
+                    hash_map.insert(hex_string, i);
+                    counter.fetch_add(1, Ordering::SeqCst);
                 }
-                if counter.load(Ordering::Relaxed) == hash_set.len() {
+                if counter.load(Ordering::Relaxed) == total_counts {
                     if thread_i == 0 {
                         eprintln!("Found all hashes.");
                     }
@@ -91,7 +93,7 @@ fn bf_digest<Hasher: Digest + FixedOutput, const OUTPUT_SIZE: usize>(
             hash_map.insert(k, v);
         }
     }
-    let found_hashes: Set<String> = Set::from_iter(hash_map.keys().cloned());
+    let found_hashes: Set<String> = Set::from_iter(hash_map.keys().map(|i| format!("{:08}", i)));
     let diff: Set<_> = hash_set.difference(&found_hashes).collect();
     for h in diff {
         println!("{},", h);
@@ -144,12 +146,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         n_threads = num_cpus::get_physical();
     }
     let hash_map = match hash_function {
-        "md5" => bf_digest::<Md5, 32>(hash_set, n_start, n_end, n_threads, verbosity)?,
-        "sha1" => bf_digest::<Sha1, 40>(hash_set, n_start, n_end, n_threads, verbosity)?,
-        "sha256" => bf_digest::<Sha256, 64>(hash_set, n_start, n_end, n_threads, verbosity)?,
-        "sha512" => bf_digest::<Sha512, 128>(hash_set, n_start, n_end, n_threads, verbosity)?,
-        "sha3-256" => bf_digest::<Sha3_256, 64>(hash_set, n_start, n_end, n_threads, verbosity)?,
-        "sha3-512" => bf_digest::<Sha3_512, 128>(hash_set, n_start, n_end, n_threads, verbosity)?,
+        "md5" => bf_digest::<Md5>(hash_set, n_start, n_end, n_threads, verbosity)?,
+        "sha1" => bf_digest::<Sha1>(hash_set, n_start, n_end, n_threads, verbosity)?,
+        "sha256" => bf_digest::<Sha256>(hash_set, n_start, n_end, n_threads, verbosity)?,
+        "sha512" => bf_digest::<Sha512>(hash_set, n_start, n_end, n_threads, verbosity)?,
+        "sha3-256" => bf_digest::<Sha3_256>(hash_set, n_start, n_end, n_threads, verbosity)?,
+        "sha3-512" => bf_digest::<Sha3_512>(hash_set, n_start, n_end, n_threads, verbosity)?,
         _ => panic!("Implementation error."),
     };
     if matches.is_present("CSV") {
@@ -166,4 +168,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_md5() {
+        let hash = "dd4b21e9ef71e1291183a46b913ae6f2".to_string();
+        let hash_set = Set::from([hash.clone()]);
+        let hash_map = bf_digest::<Md5>(hash_set, 0, 100000000, 1, 0).unwrap();
+        let value = hash_map[&hash];
+        assert_eq!(value, 0);
+    }
+
+    #[test]
+    fn test_sha1() {
+        let hash = "70352f41061eda4ff3c322094af068ba70c3b38b".to_string();
+        let hash_set = Set::from([hash.clone()]);
+        let hash_map = bf_digest::<Sha1>(hash_set, 0, 100000000, 1, 0).unwrap();
+        let value = hash_map[&hash];
+        assert_eq!(value, 0);
+    }
+
+    #[test]
+    fn test_sha512() {
+        let hash = "ce2a429a1c79d4068c0c7e54f5500ce16285d85730cb9ec0b61240f88ef9c870292200a1c069bd57d5e092874567058c91782513763bc30d86fedca63820c482".to_string();
+        let hash_set = Set::from([hash.clone()]);
+        let hash_map = bf_digest::<Sha512>(hash_set, 0, 100000000, 1, 0).unwrap();
+        let value = hash_map[&hash];
+        assert_eq!(value, 0);
+    }
 }
