@@ -93,9 +93,9 @@ fn bf_digest<Hasher: Digest + FixedOutput + 'static>(
             hash_map.insert(k, v);
         }
     }
-    let found_hashes: Set<String> = Set::from_iter(hash_map.keys().map(|i| format!("{:08}", i)));
-    let diff: Set<_> = hash_set.difference(&found_hashes).collect();
-    for h in diff {
+    let found_hashes: Set<String> = Set::from_iter(hash_map.keys().cloned());
+    let not_found: Set<_> = hash_set.difference(&found_hashes).collect();
+    for h in not_found {
         println!("{},", h);
     }
     Ok(hash_map)
