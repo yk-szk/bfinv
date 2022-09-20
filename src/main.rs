@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate clap;
 use digest::generic_array::GenericArray;
-use digest::{Digest, FixedOutput};
+use digest::Digest;
 use md5::Md5;
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
@@ -37,7 +37,7 @@ fn read_file(filename: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> 
     Ok(content)
 }
 
-fn bf_digest<Hasher: Digest + FixedOutput + 'static>(
+fn bf_digest<Hasher: Digest + digest::FixedOutputReset + 'static>(
     hash_set: Set<String>,
     n_start: usize,
     n_end: usize,
@@ -47,7 +47,8 @@ fn bf_digest<Hasher: Digest + FixedOutput + 'static>(
     let mut u8_set = Set::new();
     for hash in hash_set.iter() {
         let v = hex::decode(hash)?;
-        let a: GenericArray<u8, <Hasher as FixedOutput>::OutputSize> = GenericArray::from_iter(v);
+        let a: GenericArray<u8, <Hasher as digest::OutputSizeUser>::OutputSize> =
+            GenericArray::from_iter(v);
         u8_set.insert(a);
     }
     let counter = Arc::new(AtomicUsize::new(0));
@@ -64,8 +65,8 @@ fn bf_digest<Hasher: Digest + FixedOutput + 'static>(
             for i in ((n_start + thread_i)..n_end).step_by(n_threads) {
                 i_str.clear();
                 write!(&mut i_str, "{:08}", i).unwrap();
-                hasher.update(&i_str);
-                hasher.finalize_into_reset(&mut hash_bytes);
+                Digest::update(&mut hasher, &i_str);
+                Digest::finalize_into_reset(&mut hasher, &mut hash_bytes);
                 if t_u8_set.contains(&hash_bytes) {
                     let hex_string = hex::encode(&hash_bytes);
                     println!("{},{:08}", hex_string, i);
@@ -174,14 +175,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
 
-    fn test_g<Hasher: Digest + FixedOutput + 'static>() {
+    fn test_g<Hasher: Digest + digest::FixedOutputReset + 'static>() {
         let src = [0, 1, 10, 100, 1000, 10000];
         let hashes: Vec<String> = src
             .iter()
             .map(|s| format!("{:08}", s))
             .map(|s| {
                 let mut hasher = Hasher::new();
-                hasher.update(s);
+                digest::Digest::update(&mut hasher, s);
                 hex::encode(hasher.finalize())
             })
             .collect();

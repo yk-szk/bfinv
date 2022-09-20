@@ -2,10 +2,10 @@
 name = "bfinv"
 version = "1.1.1"
 authors = ["Yuki Suzuki <y-suzuki@radiol.med.osaka-u.ac.jp>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-clap = "2"
+clap = { version = "3", features = ["cargo"] }
 phf = { version = "0", features = ["macros"] }
 phf_macros = "0"
 digest = "0"
